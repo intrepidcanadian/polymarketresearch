@@ -128,10 +128,11 @@ def main():
     ap.add_argument("--start", default="2024-04", help="YYYY-MM")
     ap.add_argument("--end", default=datetime.now(timezone.utc).strftime("%Y-%m"))
     ap.add_argument("--one", action="store_true", help="fetch only the start month (validate)")
-    ap.add_argument("--merge", action="store_true",
-                    help="union fetched rows into existing deribit_smile_history.csv (CI monthly mode)")
+    ap.add_argument("--merge", action="store_true", help="(no-op; kept for back-compat)")
     args = ap.parse_args()
     os.makedirs(CACHE, exist_ok=True)
+    smiles_dir = osp.join(DATA, "smiles")
+    os.makedirs(smiles_dir, exist_ok=True)
 
     sy, sm = map(int, args.start.split("-"))
     ey, em = map(int, args.end.split("-"))
@@ -139,28 +140,21 @@ def main():
     if args.one:
         mlist = mlist[:1]
 
-    all_rows = []
+    # Partitioned output: one file per month (data/smiles/<YYYY-MM>.csv). Each is
+    # small and immutable once written, so the monthly CI run only ADDS a file and
+    # never rewrites a growing combined CSV (which would blow past GitHub's 100 MB
+    # file limit). Use concat.py to assemble a combined frame for experiments.
     print(f"[tardis] fetching {len(mlist)} monthly cross-sections {args.start}..{args.end}")
+    written = 0
     for (y, m) in mlist:
         r = fetch_month(y, m)
-        if r:
-            all_rows.extend(r)
-
-    if all_rows:
-        df = pd.DataFrame(all_rows)
-        fp = osp.join(DATA, "deribit_smile_history.csv")
-        if args.merge and osp.exists(fp):
-            prev = pd.read_csv(fp)
-            df = (pd.concat([prev, df], ignore_index=True)
-                  .drop_duplicates(subset=["ts_us", "asset", "expiry_us", "strike", "opt_type"],
-                                   keep="last"))
-        df.to_csv(fp, index=False)
-        byasset = df.groupby("asset").size().to_dict()
-        print(f"[tardis] wrote {len(df)} rows -> {fp}  (by asset: {byasset})")
-        print(f"         months covered: {df.shape[0] and len(mlist)}; "
-              f"distinct expiries: {df['expiry_us'].nunique()}")
-    else:
-        print("[tardis] no rows fetched")
+        if not r:
+            continue
+        fp = osp.join(smiles_dir, f"{y}-{m:02d}.csv")
+        pd.DataFrame(r).to_csv(fp, index=False)
+        written += 1
+        print(f"[tardis] {y}-{m:02d}: {len(r)} rows -> {osp.relpath(fp, DATA)}")
+    print(f"[tardis] wrote {written} monthly smile files under data/smiles/")
 
 
 if __name__ == "__main__":

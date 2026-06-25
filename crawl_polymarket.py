@@ -216,24 +216,30 @@ def main():
         if i % 25 == 0 or i == len(events):
             print(f"      {i}/{len(events)} events  ({len(all_rows)} rows)")
 
-    print("[3/3] assembling slimmed panel ...")
+    print("[3/3] assembling partitioned panel ...")
     df = pd.DataFrame(all_rows)
     manifest = {"start": start, "end": args.end, "n_events": len(events)}
     if not df.empty:
         df = df.dropna(subset=["t", "p"]).sort_values(["asset", "expiry_ts", "strike", "t"])
-        for asset, g in df.groupby("asset"):
-            fp = osp.join(DATA, f"{asset}_ladder.csv")
-            cols = COLS
+        # Partition by (asset, expiry-month) -> data/ladders/<asset>/<YYYY-MM>.csv.
+        # The daily incremental run only touches the current month's file(s), so we
+        # never rewrite one giant growing CSV (which would bloat git history and
+        # eventually exceed GitHub's 100 MB file limit). concat.py reassembles.
+        df["ym"] = pd.to_datetime(df["expiry_ts"], unit="s").dt.strftime("%Y-%m")
+        for (asset, ym), g in df.groupby(["asset", "ym"]):
+            d = osp.join(DATA, "ladders", asset)
+            os.makedirs(d, exist_ok=True)
+            fp = osp.join(d, f"{ym}.csv")
             if args.merge and osp.exists(fp):
                 prev = pd.read_csv(fp)
-                g = (pd.concat([prev, g[cols]], ignore_index=True)
+                g = (pd.concat([prev, g[COLS]], ignore_index=True)
                      .drop_duplicates(subset=["event_id", "strike", "t"], keep="last")
                      .sort_values(["expiry_ts", "strike", "t"]))
-            g[cols].to_csv(fp, index=False)
+            g[COLS].to_csv(fp, index=False)
+        for asset, g in df.groupby("asset"):
             spe = g.groupby("event_id")["strike"].nunique()
             manifest[asset] = {
-                "rows": int(len(g)),
-                "events": int(g["event_id"].nunique()),
+                "rows": int(len(g)), "events": int(g["event_id"].nunique()),
                 "strikes_per_event_min": int(spe.min()),
                 "strikes_per_event_med": int(spe.median()),
                 "strikes_per_event_max": int(spe.max()),
@@ -241,9 +247,12 @@ def main():
                 "expiry_max": int(g["expiry_ts"].max()),
             }
             print(f"      {asset}: {manifest[asset]}")
-    with open(osp.join(DATA, "manifest.json"), "w") as f:
-        json.dump(manifest, f, indent=2)
-    print("done. manifest -> data/manifest.json")
+    # Only the full backfill writes the coverage manifest; the daily incremental
+    # run sees just a few days and would otherwise clobber it with a partial summary.
+    if not args.since_days:
+        with open(osp.join(DATA, "manifest.json"), "w") as f:
+            json.dump(manifest, f, indent=2)
+    print("done. partitioned ladders -> data/ladders/<asset>/<YYYY-MM>.csv")
 
 
 if __name__ == "__main__":

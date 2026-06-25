@@ -21,11 +21,24 @@ Notes from building the collectors:
 
 ## Outputs (in `data/`)
 
-- `btc_ladder.csv`, `eth_ladder.csv` — `event_id, expiry_ts, strike, token_id, settled_yes, t, p`
-- `deribit_smile_history.csv` — monthly Deribit smiles (Tardis)
+Files are **partitioned** (per month / per run) so each stays small and the
+scheduled jobs only ever *add* files — never rewrite a growing CSV (which would
+bloat git history and hit GitHub's 100 MB file limit). Use `concat.py` to
+reassemble combined frames for analysis.
+
+- `ladders/<asset>/<YYYY-MM>.csv` — Polymarket: `event_id, expiry_ts, strike, token_id, settled_yes, t, p` (partitioned by expiry-month)
+- `smiles/<YYYY-MM>.csv` — monthly Deribit smiles (Tardis)
 - `collected/deribit/snap_<ts>.csv` — immutable hourly self-collected surfaces
 - `spot_history.csv` — hourly BTC/ETH spot (`t, asset, close`)
 - `manifest.json` — Polymarket coverage summary
+
+```python
+import concat
+ladders = concat.load_ladders()   # combined btc+eth, asset derived from path
+smiles  = concat.load_smiles()
+spot    = concat.load_spot()
+snaps   = concat.load_snapshots()
+```
 
 ## Running locally
 

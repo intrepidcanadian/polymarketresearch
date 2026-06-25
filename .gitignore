@@ -5,3 +5,4 @@ __pycache__/
 data/_cache/
 *.log
 run_*/
+data/_combined/
