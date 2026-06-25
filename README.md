@@ -62,3 +62,26 @@ commit straight to `main`:
 They share one `concurrency: data-collection` group so commits never race.
 Public repo → unlimited Actions minutes. To run on demand, use
 **Actions → \<workflow\> → Run workflow** (`workflow_dispatch`).
+
+## Postgres query layer (optional)
+
+The CSVs are the reproducible source of truth; Postgres is a derived layer for
+fast SQL joins (the matcher). Schema in `db/schema.sql`, loader in `db_load.py`,
+example joins in `db/queries.sql`. Only `ladders`, `smiles`, and `spot` are
+loaded — the hourly Deribit snapshots stay in git (they'd outgrow a free-tier DB).
+
+One-time setup:
+
+```bash
+# 1. create a free Postgres (Neon / Supabase) and copy its connection string
+export DATABASE_URL='postgresql://user:pass@host/db'
+# 2. create schema + full backfill
+pip install "psycopg[binary]" pandas
+python db_load.py --init
+python db_load.py --all
+# 3. let CI keep it current (every 6h): set the same string as a repo secret
+gh secret set DATABASE_URL -R intrepidcanadian/polymarketresearch --body "$DATABASE_URL"
+```
+
+The `sync-db` workflow then upserts new partitions automatically (idempotent —
+`ON CONFLICT DO NOTHING`). It no-ops until the secret is set.
