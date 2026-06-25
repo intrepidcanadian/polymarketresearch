@@ -1,0 +1,23 @@
+{
+  "start": "2025-08-01",
+  "end": "2026-06-25",
+  "n_events": 601,
+  "btc": {
+    "rows": 517204,
+    "events": 300,
+    "strikes_per_event_min": 1,
+    "strikes_per_event_med": 11,
+    "strikes_per_event_max": 15,
+    "expiry_min": 1754064000,
+    "expiry_max": 1782403200
+  },
+  "eth": {
+    "rows": 515710,
+    "events": 301,
+    "strikes_per_event_min": 1,
+    "strikes_per_event_med": 11,
+    "strikes_per_event_max": 11,
+    "expiry_min": 1754064000,
+    "expiry_max": 1782403200
+  }
+}
