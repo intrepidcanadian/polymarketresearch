@@ -11,6 +11,7 @@ All sources are free and public — no API keys, no paid subscriptions.
 | `crawl_polymarket.py` | Polymarket Gamma + CLOB | "above ___ on \<date\>" strike ladders → risk-neutral CDF + realized 0/1 outcomes | daily |
 | `tardis_options.py` | Tardis free 1st-of-month | full Deribit BTC/ETH option smile (mark/bid/ask IV + greeks) | monthly |
 | `deribit_snapshot.py` | Deribit live API | full live option surface (finer-than-monthly history) | hourly |
+| `spot_collect.py` | Deribit perpetual TV-chart | BTC/ETH hourly spot — moneyness/IV anchor for smile analysis | hourly |
 
 Notes from building the collectors:
 - The Polymarket daily-ladder product began ~Sep 2025.
@@ -23,6 +24,7 @@ Notes from building the collectors:
 - `btc_ladder.csv`, `eth_ladder.csv` — `event_id, expiry_ts, strike, token_id, settled_yes, t, p`
 - `deribit_smile_history.csv` — monthly Deribit smiles (Tardis)
 - `collected/deribit/snap_<ts>.csv` — immutable hourly self-collected surfaces
+- `spot_history.csv` — hourly BTC/ETH spot (`t, asset, close`)
 - `manifest.json` — Polymarket coverage summary
 
 ## Running locally
@@ -40,6 +42,7 @@ Three scheduled workflows in `.github/workflows/` keep the dataset current and
 commit straight to `main`:
 
 - `collect-deribit` — hourly
+- `collect-spot` — hourly
 - `collect-polymarket` — daily (`--since-days 3 --merge`)
 - `collect-tardis` — monthly (2nd of month)
 

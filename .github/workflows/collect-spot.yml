@@ -1,0 +1,36 @@
+name: collect-spot
+
+# Hourly BTC/ETH spot (Deribit perpetual close) — the moneyness/IV anchor for
+# smile analysis. stdlib-only; merges the last few hours into data/spot_history.csv.
+
+on:
+  schedule:
+    - cron: '5 * * * *'        # :05 past every hour (offset from deribit's :00)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection
+  cancel-in-progress: false
+
+jobs:
+  spot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch recent spot
+        run: python spot_collect.py --hours 72
+      - name: Commit
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "data: spot hourly [skip ci]"
+          git pull --rebase origin main
+          git push
