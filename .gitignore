@@ -1,0 +1,7 @@
+# This repo's purpose is to hold the collected data, so data/ IS committed.
+# Only ignore intermediate caches and local scratch.
+__pycache__/
+*.pyc
+data/_cache/
+*.log
+run_*/

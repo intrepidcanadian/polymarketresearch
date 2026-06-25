@@ -1,0 +1,38 @@
+name: collect-deribit
+
+# Hourly snapshot of the live Deribit BTC/ETH option surface (free, no auth).
+# Public repo -> unlimited Actions minutes. Commits the immutable per-run file
+# straight to main; the shared concurrency group serializes all collectors.
+
+on:
+  schedule:
+    - cron: '0 * * * *'        # top of every hour (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # deribit_snapshot.py is stdlib-only -> no pip install
+      - name: Snapshot Deribit chain
+        run: python deribit_snapshot.py --once --collected
+      - name: Commit
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "data: deribit hourly snapshot [skip ci]"
+          git pull --rebase origin main
+          git push

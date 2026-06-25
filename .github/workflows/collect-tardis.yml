@@ -1,0 +1,40 @@
+name: collect-tardis
+
+# Monthly grab of the new free first-of-month Deribit option-chain cross-section
+# from Tardis. Runs on the 2nd (the 1st's file must be published first) and
+# --merge unions the month into the combined smile history.
+
+on:
+  schedule:
+    - cron: '30 2 2 * *'        # 02:30 UTC on the 2nd of each month
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet pandas
+      - name: Fetch this month's smile cross-section
+        run: |
+          M=$(date -u +%Y-%m)
+          python tardis_options.py --start "$M" --one --merge
+      - name: Commit
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "data: tardis monthly smile [skip ci]"
+          git pull --rebase origin main
+          git push
